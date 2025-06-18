@@ -1,17 +1,17 @@
 import streamlit as st
 import wikipediaapi
 
-wiki = wikipediaapi.Wikipedia('ru')
+wiki = wikipediaapi.Wikipedia(
+    language='ru',
+    user_agent='my-movie-app/1.0 (your_email@example.com)'
+)
 
 def get_wikipedia_summary(movie_title):
     page = wiki.page(movie_title)
     if page.exists():
-        # Берём первые 3 предложения из описания
-        summary = '. '.join(page.summary.split('. ')[:5]) + '.'
-        return summary
+        return page.summary[0:500]  # первые 500 символов
     else:
-        return "Описание на Википедии не найдено."
-
+        return "Страница не найдена"
 st.title("🎥 Получение описания фильма из Википедии")
 
 movie_title = st.text_input("Введите название фильма:")
