@@ -26,6 +26,8 @@ directors = st.multiselect("Режиссёр", options=df['director'].unique())
 time_min = st.number_input("Минуты от", min_value=0, max_value=500, value=0)
 time_max = st.number_input("Минуты до", min_value=0, max_value=500, value=300)
 
+top_k = st.slider("Сколько фильмов показать?", min_value=1, max_value=20, value=10)
+
 # Фильтрация датафрейма по выбранным фильтрам
 filtered_df = df[
     (df['year'] >= years[0]) & (df['year'] <= years[1]) &
@@ -40,7 +42,6 @@ if directors:
 
 st.write(f"Найдено фильмов: {len(filtered_df)}")
 
-# Если фильтр сильно сузил выборку, делаем индекс по эмбеддингам подмножества
 filtered_indices = filtered_df.index.to_list()
 filtered_vectors = vectors[filtered_indices]
 
@@ -55,17 +56,20 @@ filtered_index.add(filtered_vectors)
 
 query = st.text_input("Введите описание фильма для поиска:")
 
-if query:
-    query_vec = model.encode([query]).astype('float32')
-    D, I = filtered_index.search(query_vec, 10)
-    results = filtered_df.iloc[I[0]]
+if st.button("Показать рекомендации"):
+    if not query.strip():
+        st.warning("Пожалуйста, введите описание фильма.")
+    else:
+        query_vec = model.encode([query]).astype('float32')
+        D, I = filtered_index.search(query_vec, top_k)
+        results = filtered_df.iloc[I[0]]
 
-    for i, row in results.iterrows():
-        st.markdown("### 🎬 " + row['movie_title'])
-        st.image(row['image_url'], width=200)
-        st.write("**Описание:**", row.get('description', ''))
-        st.write("**Жанр:**", row.get('genre', ''))
-        st.write("**Режиссёр:**", row.get('director', ''))
-        st.write("**Год:**", row.get('year', ''))
-        st.write("**Продолжительность:**", row.get('time', ''))
-        st.markdown("---")
+        for i, row in results.iterrows():
+            st.markdown("### 🎬 " + row['movie_title'])
+            st.image(row['image_url'], width=200)
+            st.write("**Описание:**", row.get('description', ''))
+            st.write("**Жанр:**", row.get('genre', ''))
+            st.write("**Режиссёр:**", row.get('director', ''))
+            st.write("**Год:**", row.get('year', ''))
+            st.write("**Продолжительность:**", row.get('time', ''))
+            st.markdown("---")
