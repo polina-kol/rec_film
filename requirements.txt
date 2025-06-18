@@ -3,5 +3,5 @@ pandas
 numpy
 sentence-transformers
 faiss-cpu
-wikipediaapi
+wikipedia-api
  #paraphrase-multilingual-MiniLM-L12-v2
