@@ -18,6 +18,14 @@ def load_model_and_index():
 df = load_data()
 model, index, vectors = load_model_and_index()
 
+st.sidebar.header("Информация о модели и индексе")
+st.sidebar.markdown("""
+- **Модель эмбеддингов:** `ai-forever/sbert_large_mt_nlu_ru`  
+  Используется для преобразования описаний фильмов в векторное пространство.
+- **Faiss индекс:** `IndexFlatL2`  
+  Индекс для быстрого поиска ближайших соседей по L2 метрике.
+- **Векторизация:** описания фильмов (столбец `description`) преобразованы в 768-мерные векторы.
+""")
 # --- Фильтры ---
 
 years = st.slider("Год выхода", int(df['year'].min()), int(df['year'].max()), (1990, 2023))
