@@ -23,7 +23,7 @@ def get_access_token():
     }
 
     data = {"scope": SCOPE}
-    response = requests.post(AUTH_URL, headers=headers, data=data)
+    response = requests.post(AUTH_URL, headers=headers, data=data, verify=False)
 
     if response.status_code == 200:
         return response.json()["access_token"]
