@@ -10,15 +10,12 @@ def get_access_token():
         "Content-Type": "application/x-www-form-urlencoded",
         "Authorization": f"Basic {AUTHORIZATION_KEY}"
     }
-    data = {
-        "scope": "GIGACHAT_API_PERS"
-    }
+    data = {"scope": "GIGACHAT_API_PERS"}
     response = requests.post(url, headers=headers, data=data)
-    if response.status_code == 200:
-        return response.json()["access_token"]
-    else:
-        st.error(f"Ошибка при получении токена: {response.status_code} {response.text}")
-        return None
+    if response.ok:
+        return response.json().get("access_token")
+    st.error(f"Ошибка при получении токена: {response.status_code} {response.text}")
+    return None
 
 def get_gigachat_summary(movie_title, access_token):
     url = "https://gigachat.devices.sberbank.ru/api/v1/chat/completions"
@@ -26,29 +23,20 @@ def get_gigachat_summary(movie_title, access_token):
         "Authorization": f"Bearer {access_token}",
         "Content-Type": "application/json"
     }
-
     prompt = f"Сделай краткое содержание художественного фильма «{movie_title}» на русском языке."
-
     data = {
         "model": "GigaChat:latest",
-        "messages": [
-            {"role": "user", "content": prompt}
-        ],
+        "messages": [{"role": "user", "content": prompt}],
         "temperature": 0.7,
         "top_p": 0.9,
         "n": 1
     }
-
     response = requests.post(url, headers=headers, json=data)
+    if response.ok:
+        return response.json()["choices"][0]["message"]["content"]
+    st.error(f"Ошибка запроса к GigaChat: {response.status_code} {response.text}")
+    return ""
 
-    if response.status_code == 200:
-        result = response.json()
-        return result["choices"][0]["message"]["content"]
-    else:
-        st.error(f"Ошибка запроса к GigaChat: {response.status_code} {response.text}")
-        return ""
-
-# Streamlit UI
 st.title("🎥 Получить описание сюжета через GigaChat")
 
 movie_title = st.text_input("Введите название фильма:")
@@ -64,3 +52,4 @@ if st.button("🔍 Получить описание"):
                 if summary:
                     st.success("Описание получено:")
                     st.markdown(f"**{movie_title}** — {summary}")
+
