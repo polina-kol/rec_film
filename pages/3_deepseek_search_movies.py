@@ -6,7 +6,6 @@ import faiss
 from langchain_groq import ChatGroq
 from langchain_core.messages import SystemMessage, HumanMessage
 
-# === API ключ ===
 GROQ_API_KEY = "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"
 
 MODEL_NAME = "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
@@ -57,37 +56,23 @@ if st.button("Получить рекомендации"):
             try:
                 llm = get_groq_llm()
                 
-                # 1. Рекомендации LLM без базы
-                system_msg_1 = SystemMessage(content=(
-                    "Ты кинокритик с чувством юмора. Отвечай по-русски, кратко и смешно, но по делу. "
-                    "Дай забавные и точные рекомендации фильмов по запросу, основываясь на своих знаниях."
-                ))
-                human_msg_1 = HumanMessage(content=f"Запрос: {user_query}\n\nДай рекомендации фильмов.")
-
-                llm_answer_1 = llm.invoke([system_msg_1, human_msg_1]).content
-
-                # 2. Поиск похожих фильмов из базы
+                # Сначала ищем фильмы из базы
                 similar_movies = find_similar_movies(user_query, model, index, df, top_k=5)
-
                 if similar_movies.empty:
-                    movies_text = "К сожалению, ничего похожего в базе нет."
+                    movies_text = "К сожалению, ничего похожего в базе не найдено."
                 else:
                     movies_text = format_movies_for_prompt(similar_movies)
-
-                # 3. Анализ найденных фильмов LLM с юмором
-                system_msg_2 = SystemMessage(content=(
-                    "Ты кинокритик с чувством юмора. Проанализируй список фильмов, "
-                    "кратко и остроумно объясни, почему они подходят под запрос."
+                
+                # Просим LLM прокомментировать найденные фильмы и дать рекомендации
+                system_msg = SystemMessage(content=(
+                    "Ты кинокритик с чувством юмора. Дай короткий, остроумный и полезный отзыв по списку фильмов и добавь свои рекомендации по запросу."
                 ))
-                human_msg_2 = HumanMessage(content=f"Запрос: {user_query}\n\nФильмы:\n{movies_text}\n\nЧто думаешь?")
+                human_msg = HumanMessage(content=f"Запрос: {user_query}\n\nФильмы:\n{movies_text}")
 
-                llm_answer_2 = llm.invoke([system_msg_2, human_msg_2]).content
-
-                # Объединяем ответы в единый текст для пользователя
-                combined_answer = f"{llm_answer_1}\n\n{llm_answer_2}"
-
+                answer = llm.invoke([system_msg, human_msg]).content
+                
                 st.markdown("### 💬 Рекомендации и мнение:")
-                st.markdown(combined_answer)
+                st.markdown(answer)
 
             except Exception as e:
                 st.error(f"Ошибка: {e}")
