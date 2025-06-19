@@ -1,14 +1,15 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
+import re
 from sentence_transformers import SentenceTransformer
 import faiss
 from langchain_groq import ChatGroq
 from langchain_core.messages import SystemMessage, HumanMessage
 
 # Параметры модели и ключ API
-GROQ_MODEL = "qwen-qwq-32b"
-GROQ_API_KEY = "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"  # Твой API ключ
+GROQ_MODEL = "deepseek-r1-distill-llama-70b"
+GROQ_API_KEY = "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"
 
 # Модель для эмбеддингов
 EMBEDDING_MODEL_NAME = "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
@@ -46,7 +47,11 @@ def get_groq_llm():
         api_key=GROQ_API_KEY
     )
 
-st.title("🎬 Кинокритика на meta-llama/llama-prompt-guard-2-86m")
+def remove_think_blocks(text):
+    return re.sub(r"<think>.*?</think>", "", text, flags=re.DOTALL).strip()
+
+# Интерфейс
+st.title("🎬 Кинокритика на DeepSeek LLaMA 70B")
 
 df = load_data()
 model, index, vectors = load_model_and_index()
@@ -91,12 +96,13 @@ if st.button("Получить отзывы и рекомендации"):
 
                 human_msg = HumanMessage(content=f"Тема: {user_query}\n\nФильмы:\n{movies_text}")
 
-                response = llm.invoke([system_msg, human_msg]).content
-                response = response.replace("<think>", "").replace("</think>", "").strip()
+                response_raw = llm.invoke([system_msg, human_msg]).content
+                response_clean = remove_think_blocks(response_raw)
 
                 st.subheader("💬 Отзывы и рекомендации:")
-                st.markdown(response)
+                st.markdown(response_clean)
 
             except Exception as e:
                 st.error(f"Ошибка при генерации: {e}")
+
 
