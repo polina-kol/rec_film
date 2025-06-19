@@ -12,7 +12,7 @@ MODEL_NAME = "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
 @st.cache_data
 def load_data():
     df = pd.read_csv("movies_list.csv")
-    df['genre_list'] = df['genre'].fillna('').apply(lambda x: [g.strip() for g in x.split(',') if g.strip()])
+    df['genre_list1'] = df['genre'].fillna('').apply(lambda x: [g.strip() for g in x.split(',') if g.strip()])
     return df
 
 # === Загрузка модели и индекса ===
@@ -51,7 +51,7 @@ col1, col2 = st.columns(2)
 with col1:
     years = st.slider("📅 Год выпуска", int(df['year'].min()), int(df['year'].max()), (1990, 2023))
     time_min = st.number_input("⏱ Минимальная длительность (мин)", min_value=0, max_value=500, value=0)
-    genre_options = sorted(set(g for genres in df['genre_list'] for g in genres))
+    genre_options = sorted(set(g for genres in df['genre_list1'] for g in genres))
     genres = st.multiselect("🎭 Жанры", genre_options)
 
 with col2:
@@ -69,7 +69,7 @@ filtered_df = df[
 ]
 
 if genres:
-    filtered_df = filtered_df[filtered_df['genre_list'].apply(lambda lst: any(g in lst for g in genres))]
+    filtered_df = filtered_df[filtered_df['genre_list1'].apply(lambda lst: any(g in lst for g in genres))]
 
 if directors:
     filtered_df = filtered_df[filtered_df['director_list'].apply(lambda lst: any(d in lst for d in directors))]
@@ -115,7 +115,7 @@ if st.button("🔍 Найти похожие фильмы"):
                     st.image(row['image_url'], width=200)
 
                 st.markdown(f"📝 **Описание:** {row.get('description', 'Нет описания')}")
-                st.markdown(f"🎭 **Жанры:** {', '.join(row.get('genre_list', [])) or 'Не указаны'}")
+                st.markdown(f"🎭 **Жанры:** {', '.join(row.get('genre_list1', [])) or 'Не указаны'}")
                 st.markdown(f"🎬 **Режиссёр:** {', '.join(row.get('director_list', [])) or 'Не указан'}")
                 st.markdown(f"📅 **Год:** {row.get('year', '?')}")
                 st.markdown(f"⏱ **Длительность:** {row.get('time_minutes', '?')} мин")
