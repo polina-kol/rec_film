@@ -46,7 +46,7 @@ st.title("🎬 Умный поиск фильмов и рекомендации"
 df = load_data()
 model, index, vectors = load_model_and_index()
 
-user_query = st.text_input("Введите запрос, например: 'Фильм про любовь в стиле аниме'")
+user_query = st.text_input("Введите запрос, например: 'новогодняя ночь'")
 
 if st.button("Получить рекомендации"):
     if not user_query.strip():
@@ -71,8 +71,19 @@ if st.button("Получить рекомендации"):
 
                 answer = llm.invoke([system_msg, human_msg]).content
                 
-                st.markdown("### 💬 Рекомендации и мнение:")
-                st.markdown(answer)
+                # Очистка тега <think>
+                clean_answer = answer.replace("<think>", "").replace("</think>", "").strip()
+
+                # Вывод с форматированием
+                st.markdown("## 💬 Рекомендации и мнение:", unsafe_allow_html=True)
+                st.markdown(
+                    f"""
+                    <div style='font-size: 18px; line-height: 1.6;'>
+                        {clean_answer.replace("\n", "<br>")}
+                    </div>
+                    """,
+                    unsafe_allow_html=True
+                )
 
             except Exception as e:
                 st.error(f"Ошибка: {e}")
