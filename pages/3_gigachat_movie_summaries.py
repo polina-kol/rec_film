@@ -6,7 +6,7 @@ import faiss
 from langchain_groq import ChatGroq
 from langchain_core.messages import SystemMessage, HumanMessage
 
-# === ВАЖНО: API ключ прописан здесь ===
+# === API ключ ===
 GROQ_API_KEY = "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"
 
 MODEL_NAME = "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
@@ -42,7 +42,7 @@ def get_groq_llm():
         api_key=GROQ_API_KEY
     )
 
-st.title("🎬 Поиск фильмов + рекомендации DeepSeek")
+st.title("🎬 Умный поиск фильмов и рекомендации")
 
 df = load_data()
 model, index, vectors = load_model_and_index()
@@ -53,31 +53,41 @@ if st.button("Получить рекомендации"):
     if not user_query.strip():
         st.warning("Введите запрос!")
     else:
-        with st.spinner("Ищу похожие фильмы..."):
+        with st.spinner("Готовлю рекомендации..."):
             try:
-                # 1. Поиск по базе
+                llm = get_groq_llm()
+                
+                # 1. Рекомендации LLM без базы
+                system_msg_1 = SystemMessage(content=(
+                    "Ты кинокритик с чувством юмора. Отвечай по-русски, кратко и смешно, но по делу. "
+                    "Дай забавные и точные рекомендации фильмов по запросу, основываясь на своих знаниях."
+                ))
+                human_msg_1 = HumanMessage(content=f"Запрос: {user_query}\n\nДай рекомендации фильмов.")
+
+                llm_answer_1 = llm.invoke([system_msg_1, human_msg_1]).content
+
+                # 2. Поиск похожих фильмов из базы
                 similar_movies = find_similar_movies(user_query, model, index, df, top_k=5)
 
                 if similar_movies.empty:
-                    st.info("По вашему запросу не найдено фильмов в базе.")
+                    movies_text = "К сожалению, ничего похожего в базе нет."
                 else:
-                    st.markdown("### 🎞 Найденные фильмы из базы:")
-                    for i, row in similar_movies.iterrows():
-                        st.markdown(f"**{row['movie_title']}** ({row.get('year', '?')}) — жанр: {row.get('genre', 'не указан')}\n\n{row.get('description', '')[:300]}...")
+                    movies_text = format_movies_for_prompt(similar_movies)
 
-                # 2. Отдельный запрос к DeepSeek LLM на рекомендации (без привязки к базе)
-                llm = get_groq_llm()
-                system_msg = SystemMessage(content=(
-                    "Ты кинокритик, отвечаешь только по-русски, с юмором и шутками. "
-                    "Дай забавные и точные рекомендации фильмов, основываясь на запросе, "
-                    "но не используй конкретно базу, а свои знания."
+                # 3. Анализ найденных фильмов LLM с юмором
+                system_msg_2 = SystemMessage(content=(
+                    "Ты кинокритик с чувством юмора. Проанализируй список фильмов, "
+                    "кратко и остроумно объясни, почему они подходят под запрос."
                 ))
-                human_msg = HumanMessage(content=f"Запрос: {user_query}\n\nДай рекомендации фильмов, которые подходят под этот запрос.")
+                human_msg_2 = HumanMessage(content=f"Запрос: {user_query}\n\nФильмы:\n{movies_text}\n\nЧто думаешь?")
 
-                answer = llm.invoke([system_msg, human_msg]).content
+                llm_answer_2 = llm.invoke([system_msg_2, human_msg_2]).content
 
-                st.markdown("### 💬 Рекомендации от DeepSeek (без базы):")
-                st.markdown(answer)
+                # Объединяем ответы в единый текст для пользователя
+                combined_answer = f"{llm_answer_1}\n\n{llm_answer_2}"
+
+                st.markdown("### 💬 Рекомендации и мнение:")
+                st.markdown(combined_answer)
 
             except Exception as e:
                 st.error(f"Ошибка: {e}")
