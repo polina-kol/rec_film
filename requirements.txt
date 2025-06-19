@@ -5,3 +5,6 @@ sentence-transformers
 faiss-cpu
 wikipedia-api
 beautifulsoup4
+langchain-groq
+langchain-core
+langchain
