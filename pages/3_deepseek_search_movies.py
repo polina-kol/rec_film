@@ -9,7 +9,8 @@ from langchain_core.messages import SystemMessage, HumanMessage
 
 # Параметры модели и ключ API
 GROQ_MODEL = "deepseek-r1-distill-llama-70b"
-GROQ_API_KEY = "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"
+GROQ_API_KEY = st.secrets["GROQ_API_KEY"]
+
 
 # Модель для эмбеддингов
 EMBEDDING_MODEL_NAME = "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
