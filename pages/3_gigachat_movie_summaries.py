@@ -16,7 +16,7 @@ from langchain.schema.output_parser import StrOutputParser
 
 # === Настройки модели ===
 MODEL_NAME = "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
-GROQ_MODEL = "mixtral-8x7b-32768"  # или "llama3-70b-8192"
+GROQ_MODEL = "llama3-70b-8192"  # или "llama3-70b-8192"
 
 # === Загрузка данных ===
 @st.cache_data
