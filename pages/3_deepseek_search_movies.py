@@ -58,7 +58,7 @@ model, index, vectors = load_model_and_index()
 
 user_query = st.text_input("Введите тему, например: 'новогодние фильмы'")
 
-if st.button("Получить отзывы и рекомендации"):
+if st.button("Получить рекомендации"):
     if not user_query.strip():
         st.warning("Пожалуйста, введите тему запроса!")
     else:
@@ -99,7 +99,7 @@ if st.button("Получить отзывы и рекомендации"):
                 response_raw = llm.invoke([system_msg, human_msg]).content
                 response_clean = remove_think_blocks(response_raw)
 
-                st.subheader("💬 Отзывы и рекомендации:")
+                st.subheader("💬 Рекомендации:")
                 st.markdown(response_clean)
 
             except Exception as e:
