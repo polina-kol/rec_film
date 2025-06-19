@@ -4,6 +4,9 @@ import numpy as np
 from sentence_transformers import SentenceTransformer
 import faiss
 
+# === Настройки модели ===
+MODEL_NAME = "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
+
 # === Загрузка данных ===
 @st.cache_data
 def load_data():
@@ -12,37 +15,41 @@ def load_data():
 # === Загрузка модели и индекса ===
 @st.cache_resource
 def load_model_and_index():
-    model = SentenceTransformer("intfloat/multilingual-e5-large")
+    model = SentenceTransformer(MODEL_NAME)
     vectors = np.load("movie_vectors.npy")
-    index = faiss.read_index("index.bin")
+    index = faiss.IndexFlatL2(vectors.shape[1])  # Евклидова метрика
+    index.add(vectors)
     return model, index, vectors
 
 # === Инициализация ===
-st.set_page_config(page_title="🎬 Рекомендации по описанию", layout="wide")
+st.set_page_config(page_title="🎬 Поиск фильмов по описанию", layout="wide")
 st.title("🎬 Поиск похожих фильмов по описанию")
 
 df = load_data()
 model, full_index, vectors = load_model_and_index()
 
-# === Боковая панель с информацией ===
-st.sidebar.header("ℹ️ Информация")
-st.sidebar.markdown("""
-**Модель эмбеддингов:** `intfloat/multilingual-e5-large`  
-**Метрика:** Косинусное сходство (через FAISS `IndexFlatIP`)  
-**Размер векторов:** 1024  
-**Предобработка:** Вектора нормализованы заранее  
+# === Информационный блок ===
+st.markdown("""
+**Модель эмбеддингов:** `sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2`  
+**Метрика:** Евклидово расстояние (через FAISS `IndexFlatL2`)  
+**Размер векторов:** 384  
 """)
 
-# === Фильтры ===
-st.sidebar.header("📋 Фильтры")
+# === Фильтры на основной странице ===
+st.subheader("🔍 Параметры поиска")
 
-years = st.sidebar.slider("Год выпуска", int(df['year'].min()), int(df['year'].max()), (1990, 2023))
-genres = st.sidebar.multiselect("Жанры", sorted(df['genre'].dropna().unique()))
-directors = st.sidebar.multiselect("Режиссёры", sorted(df['director'].dropna().unique()))
-time_min = st.sidebar.number_input("Мин. длительность", min_value=0, max_value=500, value=0)
-time_max = st.sidebar.number_input("Макс. длительность", min_value=0, max_value=500, value=300)
+col1, col2 = st.columns(2)
 
-top_k = st.sidebar.slider("Сколько рекомендаций?", min_value=1, max_value=20, value=10)
+with col1:
+    years = st.slider("Год выпуска", int(df['year'].min()), int(df['year'].max()), (1990, 2023))
+    time_min = st.number_input("Минимальная длительность (мин)", min_value=0, max_value=500, value=0)
+    genres = st.multiselect("Жанры", sorted(df['genre'].dropna().unique()))
+
+with col2:
+    time_max = st.number_input("Максимальная длительность (мин)", min_value=0, max_value=500, value=300)
+    director_options = sorted(df['director'].dropna().unique())
+    directors = st.multiselect("Режиссёры", director_options)
+    top_k = st.slider("Сколько рекомендаций показать?", min_value=1, max_value=20, value=10)
 
 # === Фильтрация DataFrame ===
 filtered_df = df[
@@ -51,48 +58,46 @@ filtered_df = df[
 ]
 
 if genres:
-    filtered_df = filtered_df[filtered_df['genre'].apply(lambda g: any(genre in g for genre in genres))]
+    filtered_df = filtered_df[filtered_df['genre'].apply(lambda g: any(genre in str(g) for genre in genres))]
 
 if directors:
     filtered_df = filtered_df[filtered_df['director'].isin(directors)]
 
-st.write(f"🎞️ Найдено фильмов после фильтрации: **{len(filtered_df)}**")
+st.info(f"🎞️ Найдено фильмов после фильтрации: **{len(filtered_df)}**")
 
 if len(filtered_df) == 0:
-    st.warning("Нет фильмов по заданным фильтрам.")
+    st.warning("❌ Нет фильмов по заданным фильтрам.")
     st.stop()
 
 # === Индексация отфильтрованных фильмов ===
-filtered_indices = filtered_df.index.to_list()
+filtered_indices = filtered_df.index.tolist()
 filtered_vectors = vectors[filtered_indices]
-
-# Нормализация (на всякий случай, если не была сохранена в .npy уже нормализованной)
-filtered_vectors = filtered_vectors / np.linalg.norm(filtered_vectors, axis=1, keepdims=True)
-
-filtered_index = faiss.IndexFlatIP(filtered_vectors.shape[1])
+filtered_index = faiss.IndexFlatL2(filtered_vectors.shape[1])
 filtered_index.add(filtered_vectors)
 
 # === Поиск по описанию ===
-query = st.text_input("Введите описание фильма для поиска:")
+st.subheader("🔎 Введите описание фильма для поиска")
+query = st.text_input("Например: фильм про любовь, грустный", key="query_input")
 
 if st.button("🔍 Найти похожие фильмы"):
     if not query.strip():
-        st.warning("Пожалуйста, введите описание.")
+        st.warning("⚠️ Пожалуйста, введите описание фильма.")
     else:
-        query_vec = model.encode([query]).astype('float32')
-        query_vec = query_vec / np.linalg.norm(query_vec, axis=1, keepdims=True)
+        with st.spinner("🔍 Поиск подходящих фильмов..."):
+            query_vec = model.encode([query]).astype('float32')
+            D, I = filtered_index.search(query_vec, top_k)
+            results = filtered_df.iloc[I[0]]
 
-        D, I = filtered_index.search(query_vec, top_k)
-        results = filtered_df.iloc[I[0]]
+            st.success("✅ Результаты поиска:")
+            for i, row in results.iterrows():
+                st.markdown("---")
+                st.markdown(f"### 🎬 {row['movie_title']}")
+                
+                if 'image_url' in row and pd.notna(row['image_url']):
+                    st.image(row['image_url'], width=200)
 
-        st.subheader("🔎 Результаты:")
-        for i, row in results.iterrows():
-            st.markdown(f"### 🎬 {row['movie_title']}")
-            if 'image_url' in row and pd.notna(row['image_url']):
-                st.image(row['image_url'], width=200)
-            st.write(f"**Описание:** {row.get('description', '')}")
-            st.write(f"**Жанр:** {row.get('genre', '')}")
-            st.write(f"**Режиссёр:** {row.get('director', '')}")
-            st.write(f"**Год:** {row.get('year', '')}")
-            st.write(f"**Длительность:** {row.get('time_minutes', '')} мин")
-            st.markdown("---")
+                st.markdown(f"**Описание:** {row.get('description', 'Нет описания')}")
+                st.markdown(f"**Жанр:** {row.get('genre', 'Не указан')}")
+                st.markdown(f"**Режиссёр:** {row.get('director', 'Не указан')}")
+                st.markdown(f"**Год:** {row.get('year', '?')}")
+                st.markdown(f"**Длительность:** {row.get('time_minutes', '?')} мин")
