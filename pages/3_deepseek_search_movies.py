@@ -7,7 +7,7 @@ from langchain_groq import ChatGroq
 from langchain_core.messages import SystemMessage, HumanMessage
 
 # Параметры модели и ключ API
-GROQ_MODEL = "meta-llama/llama-prompt-guard-2-86m"
+GROQ_MODEL = "qwen-qwq-32b"
 GROQ_API_KEY = "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"  # Твой API ключ
 
 # Модель для эмбеддингов
