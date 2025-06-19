@@ -3,6 +3,7 @@ import pandas as pd
 import numpy as np
 from sentence_transformers import SentenceTransformer
 import faiss
+from collections import Counter
 
 # === Настройки модели ===
 MODEL_NAME = "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
@@ -30,6 +31,7 @@ st.title("🎬 Поиск похожих фильмов по описанию")
 
 df = load_data()
 model, full_index, vectors = load_model_and_index()
+df['director_list'] = df['director'].fillna('').apply(lambda x: [d.strip() for d in x.split(',') if d.strip()])
 
 # === Информация о модели ===
 st.markdown("""
@@ -50,7 +52,9 @@ with col1:
 
 with col2:
     time_max = st.number_input("⏱ Максимальная длительность (мин)", min_value=0, max_value=500, value=300)
-    director_options = sorted(df['director'].dropna().unique())
+    all_directors = [d for sublist in df['director_list'] for d in sublist]
+    director_counts = Counter(all_directors)
+    director_options = [d for d, _ in director_counts.most_common()]
     directors = st.multiselect("🎬 Режиссёры", director_options)
     top_k = st.slider("📽 Кол-во рекомендаций", min_value=1, max_value=20, value=10)
 
@@ -64,7 +68,8 @@ if genres:
     filtered_df = filtered_df[filtered_df['genre_list'].apply(lambda lst: any(g in lst for g in genres))]
 
 if directors:
-    filtered_df = filtered_df[filtered_df['director'].isin(directors)]
+    filtered_df = filtered_df[filtered_df['director_list'].apply(lambda lst: any(d in lst for d in directors))]
+
 
 st.info(f"🎞 Найдено фильмов после фильтрации: **{len(filtered_df)}**")
 
@@ -107,6 +112,6 @@ if st.button("🔍 Найти похожие фильмы"):
 
                 st.markdown(f"📝 **Описание:** {row.get('description', 'Нет описания')}")
                 st.markdown(f"🎭 **Жанры:** {', '.join(row.get('genre_list', [])) or 'Не указаны'}")
-                st.markdown(f"🎬 **Режиссёр:** {row.get('director', 'Не указан')}")
+                st.markdown(f"🎬 **Режиссёр:** {', '.join(row.get('director_list', [])) or 'Не указан'}")
                 st.markdown(f"📅 **Год:** {row.get('year', '?')}")
                 st.markdown(f"⏱ **Длительность:** {row.get('time_minutes', '?')} мин")
