@@ -31,7 +31,11 @@ st.title("🎬 Поиск похожих фильмов по описанию")
 
 df = load_data()
 model, full_index, vectors = load_model_and_index()
-df['director_list'] = df['director'].fillna('').apply(lambda x: [d.strip() for d in x.split(',') if d.strip()])
+
+df['director_list'] = df['director'].fillna('').apply(
+    lambda x: [d.strip() for d in x.split(',') if d.strip() and d.strip() != '...']
+)
+
 
 # === Информация о модели ===
 st.markdown("""
