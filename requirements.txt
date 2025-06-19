@@ -4,4 +4,4 @@ numpy
 sentence-transformers
 faiss-cpu
 wikipedia-api
- #paraphrase-multilingual-MiniLM-L12-v2
+beautifulsoup4
