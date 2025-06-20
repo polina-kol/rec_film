@@ -96,6 +96,11 @@ filtered_index.add(filtered_vectors)
 st.subheader("🔎 Введите описание фильма для поиска")
 query = st.text_input("💬 Например: фильм про любовь, грустный", key="query_input")
 
+def truncate_text(text, max_len=250):
+    if not isinstance(text, str):
+        return ''
+    return text if len(text) <= max_len else text[:max_len].rstrip() + "…"
+
 if st.button("🔍 Найти похожие фильмы"):
     if not query.strip():
         st.warning("⚠️ Пожалуйста, введите описание фильма.")
@@ -108,30 +113,34 @@ if st.button("🔍 Найти похожие фильмы"):
 
             st.success("✅ Найдено:")
 
-            # Создаем 2 колонки
-            cols = st.columns(2)
+            # Проходим по результатам по 2 фильма на каждую строку
+            for i in range(0, len(results), 2):
+                cols = st.columns(2)
+                # Первый фильм в строке (левая колонка)
+                row1 = results.iloc[i]
+                with cols[0]:
+                    st.markdown("---")
+                    st.markdown(f"### 🎬 {row1['movie_title']}")
+                    if 'image_url' in row1 and pd.notna(row1['image_url']):
+                        st.image(row1['image_url'], width=200)
+                    desc = truncate_text(row1.get('description', 'Нет описания'))
+                    st.markdown(f"📝 **Описание:** {desc}")
+                    st.markdown(f"🎭 **Жанры:** {', '.join(row1.get('genre_list1', [])) or 'Не указаны'}")
+                    st.markdown(f"🎬 **Режиссёр:** {', '.join(row1.get('director_list', [])) or 'Не указан'}")
+                    st.markdown(f"📅 **Год:** {row1.get('year', '?')}")
+                    st.markdown(f"⏱ **Длительность:** {row1.get('time_minutes', '?')} мин")
 
-            # Разбиваем результаты на две части примерно равного размера
-            half = (len(results) + 1) // 2
-            left_results = results.iloc[:half]
-            right_results = results.iloc[half:]
-
-            # Функция для вывода фильма в колонку
-            def show_movie(row, container):
-                container.markdown("---")
-                container.markdown(f"### 🎬 {row['movie_title']}")
-                if 'image_url' in row and pd.notna(row['image_url']):
-                    container.image(row['image_url'], width=200)
-                container.markdown(f"📝 **Описание:** {row.get('description', 'Нет описания')}")
-                container.markdown(f"🎭 **Жанры:** {', '.join(row.get('genre_list1', [])) or 'Не указаны'}")
-                container.markdown(f"🎬 **Режиссёр:** {', '.join(row.get('director_list', [])) or 'Не указан'}")
-                container.markdown(f"📅 **Год:** {row.get('year', '?')}")
-                container.markdown(f"⏱ **Длительность:** {row.get('time_minutes', '?')} мин")
-
-            # Выводим в левый столбец
-            for _, row in left_results.iterrows():
-                show_movie(row, cols[0])
-
-            # Выводим в правый столбец
-            for _, row in right_results.iterrows():
-                show_movie(row, cols[1])
+                # Второй фильм в строке (правая колонка), если есть
+                if i + 1 < len(results):
+                    row2 = results.iloc[i + 1]
+                    with cols[1]:
+                        st.markdown("---")
+                        st.markdown(f"### 🎬 {row2['movie_title']}")
+                        if 'image_url' in row2 and pd.notna(row2['image_url']):
+                            st.image(row2['image_url'], width=200)
+                        desc = truncate_text(row2.get('description', 'Нет описания'))
+                        st.markdown(f"📝 **Описание:** {desc}")
+                        st.markdown(f"🎭 **Жанры:** {', '.join(row2.get('genre_list1', [])) or 'Не указаны'}")
+                        st.markdown(f"🎬 **Режиссёр:** {', '.join(row2.get('director_list', [])) or 'Не указан'}")
+                        st.markdown(f"📅 **Год:** {row2.get('year', '?')}")
+                        st.markdown(f"⏱ **Длительность:** {row2.get('time_minutes', '?')} мин")
