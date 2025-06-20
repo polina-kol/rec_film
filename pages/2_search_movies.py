@@ -31,19 +31,52 @@ st.set_page_config(page_title="🎬 Поиск фильмов по описан�
 # Минимальные стили
 st.markdown("""
 <style>
+    body, html {
+        font-family: Helvetica, Arial, sans-serif;
+    }
     .movie-card {
         border: 1px solid #e0e0e0;
-        border-radius: 8px;
-        padding: 15px;
-        margin-bottom: 20px;
+        border-radius: 16px;
+        padding: 20px;
+        margin-bottom: 30px;
+        background-color: #f9f9f9;
+        font-size: 16px;
+    }
+    .movie-card h3 {
+        font-size: 24px;
+        margin-bottom: 15px;
+    }
+    .movie-card img {
+        border-radius: 12px;
+        width: 100%;
+        max-height: 400px;
+        object-fit: cover;
+        margin-bottom: 15px;
     }
     .stButton button {
         background-color: #e50914;
         color: white;
         border: none;
+        border-radius: 50px;
+        padding: 12px 24px;
+        font-size: 18px;
+        transition: all 0.3s ease;
+    }
+    .stButton button:hover {
+        background-color: #b00710;
+        cursor: pointer;
+    }
+    .stSlider label, .stSelectbox label, .stMultiselect label, .stNumberInput label {
+        font-size: 18px;
+        font-weight: 600;
+    }
+    .stTextInput label {
+        font-size: 18px;
+        font-weight: 600;
     }
 </style>
 """, unsafe_allow_html=True)
+
 
 st.title("🎬 Поиск похожих фильмов по описанию")
 
