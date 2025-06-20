@@ -5,10 +5,9 @@ from sentence_transformers import SentenceTransformer
 import faiss
 from collections import Counter
 
-# === Константы ===
+# === Настройки ===
 MODEL_NAME = "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
 
-# === Кэширование данных ===
 @st.cache_data
 def load_data():
     df = pd.read_csv("movies_list.csv")
@@ -25,59 +24,79 @@ def load_model_and_index():
     index.add(vectors)
     return model, index, vectors
 
-# === Настройки страницы ===
-st.set_page_config(
-    page_title="🎬 MovieMatch - Поиск фильмов по описанию",
-    layout="wide",
-    initial_sidebar_state="expanded",
-    page_icon="🎥"
-)
+# === Чистый минималистичный дизайн ===
+st.set_page_config(page_title="Поиск фильмов", layout="wide")
 
-# === Стилизация ===
-st.markdown("""<style>
-/* CSS пропущен для краткости. Оставлен без изменений */
-</style>""", unsafe_allow_html=True)
-
-# === Заголовок ===
 st.markdown("""
-<div class="fade-in">
-    <h1>MovieMatch</h1>
-    <p style="font-size:1.1rem; color:#b3b3b3; margin-bottom:2rem;">
-    Найди идеальный фильм по описанию с помощью искусственного интеллекта
-    </p>
-</div>
+<style>
+    .block-container {
+        padding-top: 2rem;
+    }
+    
+    .movie-card {
+        background: #1a1a1a;
+        border-radius: 8px;
+        padding: 1.5rem;
+        margin-bottom: 1.5rem;
+    }
+    
+    .movie-card h3 {
+        margin-top: 0;
+        color: #ffffff;
+    }
+    
+    .stTextInput input, .stNumberInput input, .stSelectbox select, .stMultiselect div {
+        background: #1a1a1a !important;
+        color: white !important;
+        border: 1px solid #333 !important;
+    }
+    
+    .stButton button {
+        background: #e50914;
+        color: white;
+        border: none;
+        width: 100%;
+        padding: 0.75rem;
+        border-radius: 8px;
+    }
+</style>
 """, unsafe_allow_html=True)
 
-# === Загрузка данных и модели ===
-with st.spinner('Загружаем данные...'):
-    df = load_data()
-    model, full_index, vectors = load_model_and_index()
+# === Заголовок ===
+st.title("Поиск похожих фильмов")
 
-# === Боковая панель ===
-with st.sidebar:
-    st.markdown("<div style='padding:1rem 0;'><h3 style='color:#f5c518;'>🎛 Фильтры</h3></div>", unsafe_allow_html=True)
+# === Информация о модели ===
+st.markdown("""
+**Используемая модель:** sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2  
+**Метрика:** Косинусное сходство  
+**Размер эмбеддингов:** 384
+""")
+
+# === Фильтры на основной странице ===
+st.header("Фильтры")
+
+col1, col2 = st.columns(2)
+
+with col1:
+    years = st.slider("Год выпуска", int(df['year'].min()), int(df['year'].max()), (1990, 2023))
+    time_min = st.number_input("Мин. длительность (мин)", min_value=0, max_value=500, value=0)
     
-    years = st.slider("📅 Год выпуска", int(df['year'].min()), int(df['year'].max()), (1990, 2023))
-    time_min, time_max = st.slider("⏱ Длительность (мин)", 0, 500, (0, 300))
-    
-    genre_options = sorted(set(g for genres in df['genre_list1'] for g in genres))
-    genres = st.multiselect("🎭 Жанры", genre_options)
+with col2:
+    time_max = st.number_input("Макс. длительность (мин)", min_value=0, max_value=500, value=300)
+    top_k = st.slider("Кол-во рекомендаций", min_value=1, max_value=20, value=10)
 
-    all_directors = [d for sublist in df['director_list'] for d in sublist]
-    director_counts = Counter(all_directors)
-    director_options = [d for d, _ in director_counts.most_common()]
-    directors = st.multiselect("🎬 Режиссёры", director_options)
+# Жанры и режиссеры под основными фильтрами
+genre_options = sorted(set(g for genres in df['genre_list1'] for g in genres))
+genres = st.multiselect("Жанры", genre_options)
 
-    top_k = st.slider("📽 Количество рекомендаций", 1, 20, 10)
+all_directors = [d for sublist in df['director_list'] for d in sublist]
+director_counts = Counter(all_directors)
+director_options = [d for d, _ in director_counts.most_common()]
+directors = st.multiselect("Режиссёры", director_options)
 
-    st.markdown("---")
-    st.markdown("""
-    <div style="font-size:0.85rem; color:#b3b3b3;">
-        <p>🧠 Модель: <code>paraphrase-multilingual-MiniLM-L12-v2</code></p>
-        <p>📐 Метрика: Косинусное сходство</p>
-        <p>🔢 Размер эмбеддингов: 384</p>
-    </div>
-    """, unsafe_allow_html=True)
+# === Загрузка данных ===
+df = load_data()
+model, full_index, vectors = load_model_and_index()
 
 # === Применение фильтров ===
 filtered_df = df[
@@ -91,94 +110,44 @@ if genres:
 if directors:
     filtered_df = filtered_df[filtered_df['director_list'].apply(lambda lst: any(d in lst for d in directors))]
 
-st.markdown(f"""
-<div class="fade-in" style="margin-bottom:2rem;">
-    <div style="background: rgba(229, 9, 20, 0.1); padding:1rem; border-radius:8px; border-left:4px solid var(--primary);">
-        <div style="display:flex; justify-content:space-between; align-items:center;">
-            <span style="font-weight:600;">🎞 Найдено фильмов: <span style="color:#f5c518; font-size:1.2rem;">{len(filtered_df)}</span></span>
-            <span style="font-size:0.9rem; color:#b3b3b3;">Фильтры: {years[0]}-{years[1]} гг., {time_min}-{time_max} мин</span>
-        </div>
-    </div>
-</div>
-""", unsafe_allow_html=True)
+st.markdown(f"**Найдено фильмов:** {len(filtered_df)}")
 
 if len(filtered_df) == 0:
-    st.error("""
-    <div style="padding:1rem; background:rgba(229,9,20,0.1); border-radius:8px; border-left:4px solid var(--primary);">
-        ❌ Нет фильмов по заданным фильтрам. Попробуйте изменить параметры поиска.
-    </div>
-    """, unsafe_allow_html=True)
+    st.warning("Нет фильмов по заданным фильтрам.")
     st.stop()
 
-# === Подготовка FAISS индекса ===
-filtered_indices = filtered_df.index.tolist()
-try:
-    filtered_vectors = vectors[filtered_indices]
-except IndexError as e:
-    st.error(f"❌ Ошибка индексации: {e}")
-    st.stop()
+# === Поиск по описанию ===
+st.header("Поиск по описанию")
+query = st.text_input("Введите описание фильма", placeholder="Например: фильм про любовь, грустный")
 
-filtered_index = faiss.IndexFlatIP(filtered_vectors.shape[1])
-filtered_index.add(filtered_vectors)
-
-# === Интерфейс запроса ===
-st.markdown("""
-<div class="fade-in">
-    <h2>🔍 Поиск фильмов</h2>
-    <p style="color:#b3b3b3; margin-bottom:1rem;">Опишите фильм, который вам нравится, и мы найдем похожие</p>
-</div>
-""", unsafe_allow_html=True)
-
-query = st.text_area(
-    "💬 Например: фильм про любовь, грустный",
-    height=100,
-    help="Опишите сюжет, настроение или стиль фильма, который вы ищете"
-)
-
-if st.button("🔍 Найти похожие фильмы", type="primary", use_container_width=True):
+if st.button("Найти похожие фильмы"):
     if not query.strip():
-        st.warning("""
-        <div style="padding:1rem; background:rgba(245,197,24,0.1); border-radius:8px; border-left:4px solid #f5c518;">
-            ⚠️ Пожалуйста, введите описание фильма
-        </div>
-        """, unsafe_allow_html=True)
+        st.warning("Пожалуйста, введите описание.")
     else:
-        with st.spinner("🔍 Анализируем описание и ищем похожие фильмы..."):
+        with st.spinner("Поиск..."):
+            # Подготовка векторов
+            filtered_indices = filtered_df.index.tolist()
+            filtered_vectors = vectors[filtered_indices]
+            filtered_index = faiss.IndexFlatIP(filtered_vectors.shape[1])
+            filtered_index.add(filtered_vectors)
+            
+            # Поиск
             query_vec = model.encode([query]).astype('float32')
             query_vec = query_vec / np.linalg.norm(query_vec, axis=1, keepdims=True)
             D, I = filtered_index.search(query_vec, top_k)
             results = filtered_df.iloc[I[0]]
-
-            st.markdown(f"""
-            <div class="fade-in" style="margin:2rem 0 1rem 0;">
-                <div style="font-size:1.25rem; font-weight:600;">
-                    🎉 Найдено <span style="color:#f5c518;">{len(results)}</span> похожих фильмов:
-                </div>
-            </div>
-            """, unsafe_allow_html=True)
-
-            cols = st.columns(2)
-            for i, (_, row) in enumerate(results.iterrows()):
-                with cols[i % 2]:
+            
+            # Отображение результатов
+            st.subheader(f"Найдено {len(results)} похожих фильмов:")
+            
+            for _, row in results.iterrows():
+                with st.container():
                     st.markdown(f"""
-                    <div class="movie-card fade-in" style="animation-delay: {i*0.1}s;">
-                        <div class="movie-title">🎬 {row['movie_title']}</div>
-                        {f'<img src="{row["image_url"]}" class="movie-poster" style="width:100%; height:auto; border-radius:12px; margin-bottom:1rem;">' if pd.notna(row.get('image_url')) else ''}
-                        <div class="movie-meta">
-                            <div class="movie-meta-item">📅 {row.get('year', '?')}</div>
-                            <div class="movie-meta-item">⏱ {row.get('time_minutes', '?')} мин</div>
-                            <div class="movie-meta-item">⭐ {round(D[0][i], 2)}</div>
-                        </div>
-                        <div class="movie-description">
-                            {row.get('description', 'Описание отсутствует')}
-                        </div>
-                        <div style="margin-top:0.5rem;">
-                            <div style="font-size:0.9rem; color:#b3b3b3; margin-bottom:0.3rem;">🎭 Жанры:</div>
-                            <div>{" ".join([f'<span class="genre-chip">{g}</span>' for g in row.get("genre_list1", [])])}</div>
-                        </div>
-                        <div style="margin-top:0.5rem;">
-                            <div style="font-size:0.9rem; color:#b3b3b3; margin-bottom:0.3rem;">🎬 Режиссёр:</div>
-                            <div>{" ".join([f'<span class="genre-chip">{d}</span>' for d in row.get("director_list", [])])}</div>
-                        </div>
+                    <div class="movie-card">
+                        <h3>{row['movie_title']}</h3>
+                        <p><strong>Год:</strong> {row.get('year', '?')} | <strong>Длительность:</strong> {row.get('time_minutes', '?')} мин</p>
+                        <p><strong>Жанры:</strong> {', '.join(row.get('genre_list1', []))}</p>
+                        <p><strong>Режиссер:</strong> {', '.join(row.get('director_list', []))}</p>
+                        <p>{row.get('description', 'Нет описания')}</p>
                     </div>
                     """, unsafe_allow_html=True)
