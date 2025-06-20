@@ -31,51 +31,54 @@ st.set_page_config(page_title="🎬 Поиск фильмов по описан�
 # Минимальные стили
 st.markdown("""
 <style>
-    body, html {
-        font-family: Helvetica, Arial, sans-serif;
+    .movie-grid {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 30px;
     }
     .movie-card {
-        border: 1px solid #e0e0e0;
+        flex: 0 0 48%;
+        box-sizing: border-box;
+        border: 1px solid #ddd;
         border-radius: 16px;
-        padding: 20px;
-        margin-bottom: 30px;
-        background-color: #f9f9f9;
+        padding: 16px;
+        background-color: #fff;
         font-size: 16px;
-    }
-    .movie-card h3 {
-        font-size: 24px;
-        margin-bottom: 15px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.06);
     }
     .movie-card img {
-        border-radius: 12px;
         width: 100%;
-        max-height: 400px;
+        height: 350px;
         object-fit: cover;
-        margin-bottom: 15px;
+        border-radius: 12px;
+        margin-bottom: 12px;
     }
-    .stButton button {
-        background-color: #e50914;
-        color: white;
-        border: none;
-        border-radius: 50px;
-        padding: 12px 24px;
-        font-size: 18px;
-        transition: all 0.3s ease;
+    .movie-card h3 {
+        font-size: 22px;
+        margin-bottom: 10px;
     }
-    .stButton button:hover {
-        background-color: #b00710;
-        cursor: pointer;
-    }
-    .stSlider label, .stSelectbox label, .stMultiselect label, .stNumberInput label {
-        font-size: 18px;
-        font-weight: 600;
-    }
-    .stTextInput label {
-        font-size: 18px;
-        font-weight: 600;
+    .movie-card p {
+        margin: 4px 0;
     }
 </style>
+<div class="movie-grid">
 """, unsafe_allow_html=True)
+
+# HTML вывод карточек
+for _, row in results.iterrows():
+    st.markdown(f"""
+    <div class="movie-card">
+        {"<img src='"+row['image_url']+"'>" if 'image_url' in row and pd.notna(row['image_url']) else ''}
+        <h3>🎬 {row['movie_title']}</h3>
+        <p><b>📝 Описание:</b> {row.get('description', 'Нет описания')}</p>
+        <p><b>🎭 Жанры:</b> {', '.join(row.get('genre_list1', [])) or 'Не указаны'}</p>
+        <p><b>🎬 Режиссёр:</b> {', '.join(row.get('director_list', [])) or 'Не указан'}</p>
+        <p><b>📅 Год:</b> {row.get('year', '?')}</p>
+        <p><b>⏱ Длительность:</b> {row.get('time_minutes', '?')} мин</p>
+    </div>
+    """, unsafe_allow_html=True)
+
+st.markdown("</div>", unsafe_allow_html=True)
 
 
 st.title("🎬 Поиск похожих фильмов по описанию")
