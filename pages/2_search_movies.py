@@ -1,58 +1,51 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
+import re
 from sentence_transformers import SentenceTransformer
-import faiss
+from qdrant_client import QdrantClient
+from qdrant_client.http.models import Filter, FieldCondition, MatchValue
 from collections import Counter
 
-# === Настройки модели ===
+# === Настройки ===
 MODEL_NAME = "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
+COLLECTION_NAME = "movies"
 
-# === Загрузка данных ===
+# === Загрузка модели и данных ===
+@st.cache_resource
+def load_model():
+    return SentenceTransformer(MODEL_NAME)
+
 @st.cache_data
 def load_data():
     df = pd.read_csv("movies_list.csv")
-    df['genre_list1'] = df['genre'].fillna('').apply(lambda x: [g.strip() for g in x.split(',') if g.strip()])
+    df['genre_list1'] = df['genre'].fillna('').apply(lambda x: [g.strip().lower() for g in x.split(',') if g.strip()])
+    df['director_list'] = df['director'].fillna('').apply(
+        lambda x: [d.strip() for d in x.split(',') if d.strip() and d.strip() != '...']
+    )
     return df
 
-# === Загрузка модели и индекса ===
-@st.cache_resource
-def load_model_and_index():
-    model = SentenceTransformer(MODEL_NAME)
-    vectors = np.load("movie_vectors.npy")
-    vectors = vectors / np.linalg.norm(vectors, axis=1, keepdims=True)
-    index = faiss.IndexFlatIP(vectors.shape[1])
-    index.add(vectors)
-    return model, index, vectors
+# === Qdrant клиент ===
+client = QdrantClient(path="./qdrant_storage")
 
-# === Инициализация страницы ===
+# === Интерфейс ===
 st.set_page_config(page_title="🎬 Поиск фильмов по описанию", layout="wide")
 st.title("🎬 Поиск похожих фильмов по описанию")
 
+model = load_model()
 df = load_data()
-model, full_index, vectors = load_model_and_index()
 
-df['director_list'] = df['director'].fillna('').apply(
-    lambda x: [d.strip() for d in x.split(',') if d.strip() and d.strip() != '...']
-)
-
-
-# === Информация о модели ===
-st.markdown("""
-**🔢 Модель эмбеддингов:** `sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2`  
-**📏 Метрика:** Косинусное сходство (FAISS `IndexFlatIP`)  
-**📐 Размер векторов:** 384
-""")
+# === Все жанры ===
+all_genres = sorted(set(g for genres in df['genre_list1'] for g in genres))
 
 # === Фильтры ===
-st.subheader("🎛 Параметры фильтрации")
+st.subheader("🎛 Фильтры")
 col1, col2 = st.columns(2)
 
 with col1:
     years = st.slider("📅 Год выпуска", int(df['year'].min()), int(df['year'].max()), (1990, 2023))
     time_min = st.number_input("⏱ Минимальная длительность (мин)", min_value=0, max_value=500, value=0)
-    genre_options = sorted(set(g for genres in df['genre_list1'] for g in genres))
-    genres = st.multiselect("🎭 Жанры", genre_options)
+    genres = st.multiselect("🎭 Жанры", all_genres)
 
 with col2:
     time_max = st.number_input("⏱ Максимальная длительность (мин)", min_value=0, max_value=500, value=300)
@@ -62,60 +55,83 @@ with col2:
     directors = st.multiselect("🎬 Режиссёры", director_options)
     top_k = st.slider("📽 Кол-во рекомендаций", min_value=1, max_value=20, value=10)
 
-# === Фильтрация DataFrame ===
-filtered_df = df[
-    (df['year'] >= years[0]) & (df['year'] <= years[1]) &
-    (df['time_minutes'] >= time_min) & (df['time_minutes'] <= time_max)
-]
-
-if genres:
-    filtered_df = filtered_df[filtered_df['genre_list1'].apply(lambda lst: any(g in lst for g in genres))]
-
-if directors:
-    filtered_df = filtered_df[filtered_df['director_list'].apply(lambda lst: any(d in lst for d in directors))]
-
-
-st.info(f"🎞 Найдено фильмов после фильтрации: **{len(filtered_df)}**")
-
-if len(filtered_df) == 0:
-    st.warning("❌ Нет фильмов по заданным фильтрам.")
-    st.stop()
-
-# === Вектора для фильтрованных фильмов ===
-filtered_indices = filtered_df.index.tolist()
-try:
-    filtered_vectors = vectors[filtered_indices]
-except IndexError as e:
-    st.error(f"❌ Ошибка индексации: {e}")
-    st.stop()
-
-filtered_index = faiss.IndexFlatIP(filtered_vectors.shape[1])
-filtered_index.add(filtered_vectors)
-
 # === Поиск по описанию ===
-st.subheader("🔎 Введите описание фильма для поиска")
+st.subheader("🔎 Введите описание фильма")
 query = st.text_input("💬 Например: фильм про любовь, грустный", key="query_input")
+
+# === Обработка запроса ===
+def extract_genres_and_years(query):
+    query = query.lower()
+    query_words = set(re.findall(r'\w+', query))
+    found_genres = [g for g in all_genres if g in query_words]
+
+    found_years = re.findall(r'(19\d{2}|20\d{2})', query)
+    years_int = [int(y) for y in found_years]
+
+    return found_genres, years_int
 
 if st.button("🔍 Найти похожие фильмы"):
     if not query.strip():
-        st.warning("⚠️ Пожалуйста, введите описание фильма.")
-    else:
-        with st.spinner("🔍 Ищем похожие фильмы..."):
-            query_vec = model.encode([query]).astype('float32')
-            query_vec = query_vec / np.linalg.norm(query_vec, axis=1, keepdims=True)
-            D, I = filtered_index.search(query_vec, top_k)
-            results = filtered_df.iloc[I[0]]
+        st.warning("⚠️ Введите описание фильма.")
+        st.stop()
 
-            st.success("✅ Найдено:")
-            for _, row in results.iterrows():
+    with st.spinner("🔍 Поиск..."):
+        found_genres, years_from_query = extract_genres_and_years(query)
+
+        # Обновим жанры если не выбраны руками
+        if not genres and found_genres:
+            genres = found_genres
+            st.info(f"🎭 Найденные жанры: {', '.join(genres)}")
+
+        if not any(years) and years_from_query:
+            min_y, max_y = min(years_from_query), max(years_from_query)
+            years = (min_y, max_y)
+            st.info(f"📅 Найденные годы: {min_y}–{max_y}")
+
+        query_vec = model.encode(query).tolist()
+
+        # === Подготовка фильтра ===
+        conditions = [
+            FieldCondition(key="year", range={"gte": years[0], "lte": years[1]}),
+            FieldCondition(key="time_minutes", range={"gte": time_min, "lte": time_max})
+        ]
+
+        if genres:
+            conditions.append(FieldCondition(
+                key="genres",
+                match=MatchValue(any=genres)
+            ))
+
+        if directors:
+            conditions.append(FieldCondition(
+                key="director",
+                match=MatchValue(any=directors)
+            ))
+
+        q_filter = Filter(must=conditions)
+
+        # === Поиск в Qdrant ===
+        hits = client.search(
+            collection_name=COLLECTION_NAME,
+            query_vector=query_vec,
+            query_filter=q_filter,
+            limit=top_k
+        )
+
+        if not hits:
+            st.warning("❌ Ничего не найдено по запросу.")
+        else:
+            st.success(f"✅ Найдено: {len(hits)}")
+            for hit in hits:
+                p = hit.payload
                 st.markdown("---")
-                st.markdown(f"### 🎬 {row['movie_title']}")
+                st.markdown(f"### 🎬 {p['title']}")
 
-                if 'image_url' in row and pd.notna(row['image_url']):
-                    st.image(row['image_url'], width=200)
+                if p.get("image_url"):
+                    st.image(p['image_url'], width=200)
 
-                st.markdown(f"📝 **Описание:** {row.get('description', 'Нет описания')}")
-                st.markdown(f"🎭 **Жанры:** {', '.join(row.get('genre_list1', [])) or 'Не указаны'}")
-                st.markdown(f"🎬 **Режиссёр:** {', '.join(row.get('director_list', [])) or 'Не указан'}")
-                st.markdown(f"📅 **Год:** {row.get('year', '?')}")
-                st.markdown(f"⏱ **Длительность:** {row.get('time_minutes', '?')} мин")
+                st.markdown(f"📝 **Описание:** {p['description']}")
+                st.markdown(f"🎭 **Жанры:** {', '.join(p['genres'])}")
+                st.markdown(f"🎬 **Режиссёр:** {p['director']}")
+                st.markdown(f"📅 **Год:** {p['year']}")
+                st.markdown(f"⏱ **Длительность:** {p['time_minutes']} мин")
