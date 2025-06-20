@@ -29,60 +29,92 @@ st.set_page_config(page_title="🎬 Поиск фильмов", layout="wide")
 
 st.markdown("""
 <style>
-    .block-container {
-        padding-top: 2rem;
+    html, body, [class*="css"] {
+        font-family: "Helvetica Neue", Helvetica, Arial, sans-serif !important;
+        color: white;
         background-color: #121212;
     }
+
+    .block-container {
+        padding-top: 2rem;
+    }
+
     h1 {
-        font-size: 2.5rem;
+        font-size: 3rem !important;
         color: white;
-        font-weight: 700;
+        font-weight: 800;
         margin-bottom: 2rem;
     }
-    h3 {
+
+    h2, h3, h4 {
         color: white;
         font-weight: 600;
     }
+
     .movie-card {
-        background: linear-gradient(145deg, #1c1c1c, #2a2a2a);
+        background: linear-gradient(145deg, #1e1e1e, #292929);
         border: 1px solid #333;
-        padding: 1.5rem;
-        border-radius: 16px;
+        padding: 1.75rem;
+        border-radius: 18px;
         margin-bottom: 2rem;
         color: white;
-        box-shadow: 0 8px 20px rgba(0,0,0,0.35);
+        box-shadow: 0 8px 24px rgba(0,0,0,0.4);
         transition: transform 0.2s ease-in-out;
     }
+
     .movie-card:hover {
-        transform: scale(1.01);
+        transform: scale(1.015);
     }
+
     .stImage > img {
-        border-radius: 12px;
+        border-radius: 14px;
         margin-bottom: 1rem;
     }
+
     .stNumberInput > div > input,
     .stTextInput > div > input,
     .stMultiSelect > div {
         background-color: #1c1c1c;
         color: white;
         border: 1px solid #444;
+        font-size: 1rem;
     }
+
     .stButton button {
         background-color: #e50914;
         color: white;
-        font-weight: bold;
-        border-radius: 8px;
-        padding: 0.6rem 1.2rem;
+        font-weight: 600;
+        font-size: 1rem;
+        border-radius: 10px;
+        padding: 0.6rem 1.3rem;
+        transition: background-color 0.2s ease-in-out;
     }
+
     .stButton button:hover {
         background-color: #b00610;
     }
+
     .stAlert {
         background-color: #1e1e1e;
         border-left: 5px solid #e50914;
+        color: white;
+    }
+
+    .stSlider > div[data-baseweb="slider"] {
+        color: white !important;
+    }
+
+    .element-container h3 {
+        font-size: 1.4rem !important;
+        font-weight: 700;
+    }
+
+    .css-1r6slb0 {
+        font-size: 1rem !important;
     }
 </style>
 """, unsafe_allow_html=True)
+
 
 # === Заголовок ===
 st.markdown("<h1>🎬 Поиск похожих фильмов по описанию</h1>", unsafe_allow_html=True)
