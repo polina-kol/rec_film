@@ -52,7 +52,7 @@ def remove_think_blocks(text):
     return re.sub(r"<think>.*?</think>", "", text, flags=re.DOTALL).strip()
 
 # Интерфейс
-st.title("🎬 Рекомендации от DeepSeek LLaMA 70B")
+st.title("🎬 RAG-система рекомендаций фильмов (DeepSeek LLaMA 70B)")
 
 df = load_data()
 model, index, vectors = load_model_and_index()
