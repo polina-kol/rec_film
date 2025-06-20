@@ -28,23 +28,27 @@ def load_model_and_index():
 # === Инициализация страницы ===
 st.set_page_config(page_title="🎬 Поиск фильмов по описанию", layout="wide")
 
-# Минимальные стили
+# === Стили CSS ===
 st.markdown("""
 <style>
+    body, html {
+        font-family: Helvetica, Arial, sans-serif;
+    }
     .movie-grid {
         display: flex;
         flex-wrap: wrap;
         gap: 30px;
+        margin-top: 20px;
     }
     .movie-card {
         flex: 0 0 48%;
         box-sizing: border-box;
-        border: 1px solid #ddd;
+        border: 1px solid #e0e0e0;
         border-radius: 16px;
         padding: 16px;
-        background-color: #fff;
+        background-color: #f9f9f9;
         font-size: 16px;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+        box-shadow: 0 2px 6px rgba(0,0,0,0.05);
     }
     .movie-card img {
         width: 100%;
@@ -58,31 +62,32 @@ st.markdown("""
         margin-bottom: 10px;
     }
     .movie-card p {
-        margin: 4px 0;
+        margin: 5px 0;
+    }
+    .stButton button {
+        background-color: #e50914;
+        color: white;
+        border: none;
+        border-radius: 50px;
+        padding: 12px 24px;
+        font-size: 18px;
+        transition: all 0.3s ease;
+    }
+    .stButton button:hover {
+        background-color: #b00710;
+        cursor: pointer;
+    }
+    .stSlider label, .stSelectbox label, .stMultiselect label, .stNumberInput label, .stTextInput label {
+        font-size: 18px;
+        font-weight: 600;
     }
 </style>
-<div class="movie-grid">
 """, unsafe_allow_html=True)
 
-# HTML вывод карточек
-for _, row in results.iterrows():
-    st.markdown(f"""
-    <div class="movie-card">
-        {"<img src='"+row['image_url']+"'>" if 'image_url' in row and pd.notna(row['image_url']) else ''}
-        <h3>🎬 {row['movie_title']}</h3>
-        <p><b>📝 Описание:</b> {row.get('description', 'Нет описания')}</p>
-        <p><b>🎭 Жанры:</b> {', '.join(row.get('genre_list1', [])) or 'Не указаны'}</p>
-        <p><b>🎬 Режиссёр:</b> {', '.join(row.get('director_list', [])) or 'Не указан'}</p>
-        <p><b>📅 Год:</b> {row.get('year', '?')}</p>
-        <p><b>⏱ Длительность:</b> {row.get('time_minutes', '?')} мин</p>
-    </div>
-    """, unsafe_allow_html=True)
-
-st.markdown("</div>", unsafe_allow_html=True)
-
-
+# === Заголовок ===
 st.title("🎬 Поиск похожих фильмов по описанию")
 
+# === Загрузка данных и модели ===
 df = load_data()
 model, full_index, vectors = load_model_and_index()
 
@@ -115,7 +120,7 @@ with col2:
     directors = st.multiselect("🎬 Режиссёры", director_options)
     top_k = st.slider("📽 Кол-во рекомендаций", min_value=1, max_value=20, value=10)
 
-# === Фильтрация DataFrame ===
+# === Фильтрация ===
 filtered_df = df[
     (df['year'] >= years[0]) & (df['year'] <= years[1]) &
     (df['time_minutes'] >= time_min) & (df['time_minutes'] <= time_max)
@@ -133,7 +138,7 @@ if len(filtered_df) == 0:
     st.warning("❌ Нет фильмов по заданным фильтрам.")
     st.stop()
 
-# === Вектора для фильтрованных фильмов ===
+# === Индексация отфильтрованных векторов ===
 filtered_indices = filtered_df.index.tolist()
 try:
     filtered_vectors = vectors[filtered_indices]
@@ -159,19 +164,19 @@ if st.button("🔍 Найти похожие фильмы"):
             results = filtered_df.iloc[I[0]]
 
             st.success("✅ Найдено:")
-            
-            # Отображение в сетке 2 колонки
-            cols = st.columns(2)
-            for i, (_, row) in enumerate(results.iterrows()):
-                with cols[i % 2]:
-                    st.markdown(f"""
-                    <div class="movie-card">
-                        <h3>🎬 {row['movie_title']}</h3>
-                        {"<img src='"+row['image_url']+"' width='100%'>" if 'image_url' in row and pd.notna(row['image_url']) else ''}
-                        <p><b>📝 Описание:</b> {row.get('description', 'Нет описания')}</p>
-                        <p><b>🎭 Жанры:</b> {', '.join(row.get('genre_list1', [])) or 'Не указаны'}</p>
-                        <p><b>🎬 Режиссёр:</b> {', '.join(row.get('director_list', [])) or 'Не указан'}</p>
-                        <p><b>📅 Год:</b> {row.get('year', '?')}</p>
-                        <p><b>⏱ Длительность:</b> {row.get('time_minutes', '?')} мин</p>
-                    </div>
-                    """, unsafe_allow_html=True)
+            st.markdown('<div class="movie-grid">', unsafe_allow_html=True)
+
+            for _, row in results.iterrows():
+                st.markdown(f"""
+                <div class="movie-card">
+                    {"<img src='"+row['image_url']+"'>" if 'image_url' in row and pd.notna(row['image_url']) else ''}
+                    <h3>🎬 {row['movie_title']}</h3>
+                    <p><b>📝 Описание:</b> {row.get('description', 'Нет описания')}</p>
+                    <p><b>🎭 Жанры:</b> {', '.join(row.get('genre_list1', [])) or 'Не указаны'}</p>
+                    <p><b>🎬 Режиссёр:</b> {', '.join(row.get('director_list', [])) or 'Не указан'}</p>
+                    <p><b>📅 Год:</b> {row.get('year', '?')}</p>
+                    <p><b>⏱ Длительность:</b> {row.get('time_minutes', '?')} мин</p>
+                </div>
+                """, unsafe_allow_html=True)
+
+            st.markdown("</div>", unsafe_allow_html=True)
