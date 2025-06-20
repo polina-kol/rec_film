@@ -5,7 +5,7 @@ from sentence_transformers import SentenceTransformer
 import faiss
 from collections import Counter
 
-# === Настройки модели и данных ===
+# === Настройки ===
 MODEL_NAME = "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
 
 @st.cache_data
@@ -24,41 +24,81 @@ def load_model_and_index():
     index.add(vectors)
     return model, index, vectors
 
-# === Инициализация Streamlit страницы ===
+# === Стилизация страницы ===
 st.set_page_config(page_title="🎬 Поиск фильмов", layout="wide")
-st.markdown("<h1 style='color:#e50914;'>🎬 Поиск похожих фильмов по описанию</h1>", unsafe_allow_html=True)
 
-# === Стили ===
 st.markdown("""
 <style>
-    .block-container { padding-top: 2rem; }
-    h3 { color: #f5c518; font-weight: 700; }
-    .movie-card {
-        background-color: #1e1e1e;
-        padding: 1rem;
-        border-radius: 12px;
-        margin-bottom: 1.5rem;
+    .block-container {
+        padding-top: 2rem;
+        background-color: #121212;
+    }
+    h1 {
+        font-size: 2.5rem;
         color: white;
-        box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+        font-weight: 700;
+        margin-bottom: 2rem;
+    }
+    h3 {
+        color: white;
+        font-weight: 600;
+    }
+    .movie-card {
+        background: linear-gradient(145deg, #1c1c1c, #2a2a2a);
+        border: 1px solid #333;
+        padding: 1.5rem;
+        border-radius: 16px;
+        margin-bottom: 2rem;
+        color: white;
+        box-shadow: 0 8px 20px rgba(0,0,0,0.35);
+        transition: transform 0.2s ease-in-out;
+    }
+    .movie-card:hover {
+        transform: scale(1.01);
     }
     .stImage > img {
-        border-radius: 10px;
+        border-radius: 12px;
+        margin-bottom: 1rem;
+    }
+    .stNumberInput > div > input,
+    .stTextInput > div > input,
+    .stMultiSelect > div {
+        background-color: #1c1c1c;
+        color: white;
+        border: 1px solid #444;
+    }
+    .stButton button {
+        background-color: #e50914;
+        color: white;
+        font-weight: bold;
+        border-radius: 8px;
+        padding: 0.6rem 1.2rem;
+    }
+    .stButton button:hover {
+        background-color: #b00610;
+    }
+    .stAlert {
+        background-color: #1e1e1e;
+        border-left: 5px solid #e50914;
     }
 </style>
 """, unsafe_allow_html=True)
 
-# === Загрузка модели и данных ===
+# === Заголовок ===
+st.markdown("<h1>🎬 Поиск похожих фильмов по описанию</h1>", unsafe_allow_html=True)
+
+# === Загрузка данных и модели ===
 df = load_data()
 model, full_index, vectors = load_model_and_index()
 
-# === Боковая информация ===
+# === Инфо о модели ===
 st.markdown("""
 **🧠 Модель:** `paraphrase-multilingual-MiniLM-L12-v2`  
 **📐 Метрика:** Косинусное сходство  
 **🔢 Размер эмбеддингов:** 384
 """)
 
-# === Фильтрация ===
+# === Фильтры ===
 st.subheader("🎛 Фильтры")
 col1, col2 = st.columns(2)
 
@@ -76,7 +116,7 @@ with col2:
     directors = st.multiselect("🎬 Режиссёры", director_options)
     top_k = st.slider("📽 Кол-во рекомендаций", min_value=1, max_value=20, value=10)
 
-# === Фильтрация DataFrame ===
+# === Применение фильтров ===
 filtered_df = df[
     (df['year'] >= years[0]) & (df['year'] <= years[1]) &
     (df['time_minutes'] >= time_min) & (df['time_minutes'] <= time_max)
@@ -94,7 +134,7 @@ if len(filtered_df) == 0:
     st.warning("❌ Нет фильмов по заданным фильтрам.")
     st.stop()
 
-# === Подготовка индекса из фильтрованных фильмов ===
+# === Подготовка векторов ===
 filtered_indices = filtered_df.index.tolist()
 try:
     filtered_vectors = vectors[filtered_indices]
@@ -119,7 +159,12 @@ if st.button("🔍 Найти похожие фильмы"):
             D, I = filtered_index.search(query_vec, top_k)
             results = filtered_df.iloc[I[0]]
 
-            st.success(f"✅ Найдено {len(results)} похожих фильмов:")
+            st.markdown(f"""
+            <div style='font-size: 1.25rem; color: white; font-weight: 500; margin-bottom: 1rem;'>
+            ✅ Найдено <span style='color:#f5c518; font-weight:700;'>{len(results)}</span> похожих фильмов:
+            </div>
+            """, unsafe_allow_html=True)
+
             for i in range(0, len(results), 2):
                 cols = st.columns(2)
                 for j in range(2):
