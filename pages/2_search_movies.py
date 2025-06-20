@@ -26,7 +26,7 @@ def load_data():
     return df
 
 # === Qdrant клиент ===
-client = QdrantClient(path="./qdrant_storage")
+client = QdrantClient(path="qdrant_storage")
 
 # === Интерфейс ===
 st.set_page_config(page_title="🎬 Поиск фильмов по описанию", layout="wide")
