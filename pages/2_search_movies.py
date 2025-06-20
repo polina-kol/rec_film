@@ -5,90 +5,133 @@ from sentence_transformers import SentenceTransformer
 import faiss
 from collections import Counter
 
+# === Настройки модели ===
 MODEL_NAME = "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
 
+# === Загрузка данных ===
 @st.cache_data
 def load_data():
     df = pd.read_csv("movies_list.csv")
     df['genre_list1'] = df['genre'].fillna('').apply(lambda x: [g.strip() for g in x.split(',') if g.strip()])
-    df['director_list'] = df['director'].fillna('').apply(lambda x: [d.strip() for d in x.split(',') if d.strip() and d.strip() != '...'])
     return df
 
+# === Загрузка модели и индекса ===
 @st.cache_resource
-def load_model_and_vectors():
+def load_model_and_index():
     model = SentenceTransformer(MODEL_NAME)
     vectors = np.load("movie_vectors.npy")
     vectors = vectors / np.linalg.norm(vectors, axis=1, keepdims=True)
-    return model, vectors
+    index = faiss.IndexFlatIP(vectors.shape[1])
+    index.add(vectors)
+    return model, index, vectors
 
+# === Инициализация страницы ===
 st.set_page_config(page_title="🎬 Поиск фильмов по описанию", layout="wide")
-
-df = load_data()
-model, vectors = load_model_and_vectors()
-
 st.title("🎬 Поиск похожих фильмов по описанию")
 
-# Фильтры
-years = st.slider("📅 Год выпуска", int(df['year'].min()), int(df['year'].max()), (1990, 2023))
-time_min = st.number_input("⏱ Минимальная длительность (мин)", min_value=0, max_value=500, value=0)
-time_max = st.number_input("⏱ Максимальная длительность (мин)", min_value=0, max_value=500, value=300)
-genre_options = sorted({g for genres in df['genre_list1'] for g in genres})
-genres = st.multiselect("🎭 Жанры", genre_options)
-all_directors = [d for sublist in df['director_list'] for d in sublist]
-director_counts = Counter(all_directors)
-director_options = [d for d, _ in director_counts.most_common()]
-directors = st.multiselect("🎬 Режиссёры", director_options)
-top_k = st.slider("📽 Кол-во рекомендаций", 1, 20, 10)
+df = load_data()
+model, full_index, vectors = load_model_and_index()
 
-# Фильтрация
+df['director_list'] = df['director'].fillna('').apply(
+    lambda x: [d.strip() for d in x.split(',') if d.strip() and d.strip() != '...']
+)
+
+
+# === Информация о модели ===
+st.markdown("""
+**🔢 Модель эмбеддингов:** `sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2`  
+**📏 Метрика:** Косинусное сходство (FAISS `IndexFlatIP`)  
+**📐 Размер векторов:** 384
+""")
+
+# === Фильтры ===
+st.subheader("🎛 Параметры фильтрации")
+col1, col2 = st.columns(2)
+
+with col1:
+    years = st.slider("📅 Год выпуска", int(df['year'].min()), int(df['year'].max()), (1990, 2023))
+    time_min = st.number_input("⏱ Минимальная длительность (мин)", min_value=0, max_value=500, value=0)
+    genre_options = sorted(set(g for genres in df['genre_list1'] for g in genres))
+    genres = st.multiselect("🎭 Жанры", genre_options)
+
+with col2:
+    time_max = st.number_input("⏱ Максимальная длительность (мин)", min_value=0, max_value=500, value=300)
+    all_directors = [d for sublist in df['director_list'] for d in sublist]
+    director_counts = Counter(all_directors)
+    director_options = [d for d, _ in director_counts.most_common()]
+    directors = st.multiselect("🎬 Режиссёры", director_options)
+    top_k = st.slider("📽 Кол-во рекомендаций", min_value=1, max_value=20, value=10)
+
+# === Фильтрация DataFrame ===
 filtered_df = df[
     (df['year'] >= years[0]) & (df['year'] <= years[1]) &
     (df['time_minutes'] >= time_min) & (df['time_minutes'] <= time_max)
 ]
+
 if genres:
     filtered_df = filtered_df[filtered_df['genre_list1'].apply(lambda lst: any(g in lst for g in genres))]
+
 if directors:
     filtered_df = filtered_df[filtered_df['director_list'].apply(lambda lst: any(d in lst for d in directors))]
 
+
 st.info(f"🎞 Найдено фильмов после фильтрации: **{len(filtered_df)}**")
+
 if len(filtered_df) == 0:
     st.warning("❌ Нет фильмов по заданным фильтрам.")
     st.stop()
 
-# Поиск по описанию
-query = st.text_input("🔎 Введите описание фильма для поиска", key="query_input")
+# === Вектора для фильтрованных фильмов ===
+filtered_indices = filtered_df.index.tolist()
+try:
+    filtered_vectors = vectors[filtered_indices]
+except IndexError as e:
+    st.error(f"❌ Ошибка индексации: {e}")
+    st.stop()
+
+filtered_index = faiss.IndexFlatIP(filtered_vectors.shape[1])
+filtered_index.add(filtered_vectors)
+
+# === Поиск по описанию ===
+st.subheader("🔎 Введите описание фильма для поиска")
+query = st.text_input("💬 Например: фильм про любовь, грустный", key="query_input")
 
 if st.button("🔍 Найти похожие фильмы"):
     if not query.strip():
         st.warning("⚠️ Пожалуйста, введите описание фильма.")
     else:
         with st.spinner("🔍 Ищем похожие фильмы..."):
-            filtered_indices = filtered_df.index.to_list()
-            filtered_vectors = vectors[filtered_indices]
-            filtered_vectors = filtered_vectors.astype('float32')
-
-            index = faiss.IndexFlatIP(filtered_vectors.shape[1])
-            index.add(filtered_vectors)
-
             query_vec = model.encode([query]).astype('float32')
-            query_vec /= np.linalg.norm(query_vec, axis=1, keepdims=True)
-
-            D, I = index.search(query_vec, top_k)
+            query_vec = query_vec / np.linalg.norm(query_vec, axis=1, keepdims=True)
+            D, I = filtered_index.search(query_vec, top_k)
             results = filtered_df.iloc[I[0]]
 
-            st.success(f"✅ Найдено: {len(results)}")
+            st.success("✅ Найдено:")
 
+            # Создаем 2 колонки
             cols = st.columns(2)
-            for i, (_, row) in enumerate(results.iterrows()):
-                with cols[i % 2]:
-                    st.markdown(f"""
-                    <div style="border:1px solid #e0e0e0; border-radius:16px; padding:16px; margin-bottom:24px; background:#f9f9f9;">
-                        {f"<img src='{row['image_url']}' style='width:100%; height:350px; object-fit:cover; border-radius:12px;'/>" if 'image_url' in row and pd.notna(row['image_url']) else ''}
-                        <h3>🎬 {row['movie_title']}</h3>
-                        <p><b>📝 Описание:</b> {row.get('description', 'Нет описания')}</p>
-                        <p><b>🎭 Жанры:</b> {', '.join(row.get('genre_list1', [])) or 'Не указаны'}</p>
-                        <p><b>🎬 Режиссёр:</b> {', '.join(row.get('director_list', [])) or 'Не указан'}</p>
-                        <p><b>📅 Год:</b> {row.get('year', '?')}</p>
-                        <p><b>⏱ Длительность:</b> {row.get('time_minutes', '?')} мин</p>
-                    </div>
-                    """, unsafe_allow_html=True)
+
+            # Разбиваем результаты на две части примерно равного размера
+            half = (len(results) + 1) // 2
+            left_results = results.iloc[:half]
+            right_results = results.iloc[half:]
+
+            # Функция для вывода фильма в колонку
+            def show_movie(row, container):
+                container.markdown("---")
+                container.markdown(f"### 🎬 {row['movie_title']}")
+                if 'image_url' in row and pd.notna(row['image_url']):
+                    container.image(row['image_url'], width=200)
+                container.markdown(f"📝 **Описание:** {row.get('description', 'Нет описания')}")
+                container.markdown(f"🎭 **Жанры:** {', '.join(row.get('genre_list1', [])) or 'Не указаны'}")
+                container.markdown(f"🎬 **Режиссёр:** {', '.join(row.get('director_list', [])) or 'Не указан'}")
+                container.markdown(f"📅 **Год:** {row.get('year', '?')}")
+                container.markdown(f"⏱ **Длительность:** {row.get('time_minutes', '?')} мин")
+
+            # Выводим в левый столбец
+            for _, row in left_results.iterrows():
+                show_movie(row, cols[0])
+
+            # Выводим в правый столбец
+            for _, row in right_results.iterrows():
+                show_movie(row, cols[1])
