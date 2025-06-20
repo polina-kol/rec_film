@@ -8,3 +8,4 @@ beautifulsoup4
 langchain-groq
 langchain-core
 langchain
+qdrant-client
